@@ -1,3 +1,8 @@
 out/
 cache/
 broadcast/
+
+# Local Attestcoin reference repo
+attestcoin-protocol-examples/
+# Local Foundry dependencies
+lib/
