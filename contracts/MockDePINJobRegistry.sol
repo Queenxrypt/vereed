@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 /// @title MockDePINJobRegistry
 /// @notice Source-chain mock DePIN job registry for the Vereed hackathon demo.
