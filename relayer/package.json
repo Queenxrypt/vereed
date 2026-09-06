@@ -1,0 +1,9 @@
+{
+  "name": "vereed-relayer",
+  "private": true,
+  "scripts": {
+    "start": "node ../attestcoin-protocol-examples/node_modules/tsx/dist/cli.mjs ./server.ts",
+    "settle": "node ../attestcoin-protocol-examples/node_modules/tsx/dist/cli.mjs ./settle.ts settle",
+    "typecheck": "node ../attestcoin-protocol-examples/node_modules/typescript/bin/tsc --noEmit -p tsconfig.json"
+  }
+}

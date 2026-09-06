@@ -10,5 +10,5 @@
     "types": ["node"],
     "typeRoots": ["../attestcoin-protocol-examples/node_modules/@types"]
   },
-  "include": ["./settle.ts"]
+  "include": ["./settle.ts", "./server.ts"]
 }
