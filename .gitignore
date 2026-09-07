@@ -6,3 +6,9 @@ broadcast/
 attestcoin-protocol-examples/
 # Local Foundry dependencies
 lib/
+!frontend/src/lib/
+!frontend/src/lib/**
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
