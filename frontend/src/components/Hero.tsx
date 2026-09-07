@@ -10,13 +10,17 @@ type HeroProps = {
 
 export function Hero({ snapshot, session, flowStatus, loading }: HeroProps) {
   const status = deriveStatus(snapshot, session);
-  const jobLabel = session.jobId
-    ? `Job #${session.jobId.toString()}`
-    : session.candidateJobId
-      ? `Job #${session.candidateJobId.toString()} (candidate)`
-      : "No session job";
+  const jobLabel = session.settlement
+    ? `Job #${session.settlement.jobId}`
+    : session.jobId
+      ? `Job #${session.jobId.toString()}`
+      : session.candidateJobId
+        ? `Job #${session.candidateJobId.toString()} (candidate)`
+        : "No session job";
   const created = session.createConfirmed;
   const completed = session.completeConfirmed;
+  const settled = session.settleConfirmed;
+  const waiting = flowStatus === "waiting_settlement";
   const live = snapshot !== null && !loading;
 
   return (
@@ -44,14 +48,22 @@ export function Hero({ snapshot, session, flowStatus, loading }: HeroProps) {
         <p className="hero__promise">Verify the work. Release the payment.</p>
       </div>
 
-      <aside className="hero-result" aria-label="Session job">
+      <aside className={`hero-result${settled ? " is-settled" : ""}`} aria-label="Session job">
         <p className="hero-result__job">{jobLabel}</p>
         <ol className="hero-result__stages">
           <li className={completed ? "is-done" : created ? "is-done" : ""}>
             {completed ? "Completed" : created ? "Created" : "Not created"}
           </li>
-          <li>Unverified</li>
-          <li>Not paid</li>
+          <li className={settled ? "is-done" : ""}>
+            {waiting ? "Waiting…" : settled ? "Verified" : "Unverified"}
+          </li>
+          <li className={settled ? "is-done" : ""}>
+            {waiting
+              ? "Waiting…"
+              : settled && session.settlement
+                ? `${session.settlement.rewardFormatted} paid`
+                : "Not paid"}
+          </li>
         </ol>
         <ol className="hero-result__chains">
           <li>Ethereum Sepolia</li>
@@ -60,7 +72,7 @@ export function Hero({ snapshot, session, flowStatus, loading }: HeroProps) {
         </ol>
         <p className="hero-result__status">
           {flowStatusLabel(flowStatus)}
-          {status.kind !== "idle" ? ` · ${status.label}` : ""}
+          {status.kind !== "idle" && flowStatus !== "waiting_settlement" ? ` · ${status.label}` : ""}
         </p>
       </aside>
     </section>

@@ -55,7 +55,21 @@ export type JobFlowStatus =
   | "created"
   | "completing"
   | "completed"
+  | "ready_to_request_settlement"
+  | "waiting_settlement"
+  | "settled"
+  | "settlement_error"
   | "error";
+
+export type SessionSettlement = {
+  sourceTxHash: string;
+  settlementTxHash: string;
+  jobId: string;
+  operator: string;
+  reward: string;
+  rewardFormatted: string;
+  queryId: string;
+};
 
 export type SessionJob = {
   candidateJobId: bigint | null;
@@ -66,7 +80,11 @@ export type SessionJob = {
   sourceTxHash: `0x${string}` | null;
   createConfirmed: boolean;
   completeConfirmed: boolean;
+  settleConfirmed: boolean;
+  settlement: SessionSettlement | null;
+  relayerSettled: boolean | null;
   pendingTxHash: `0x${string}` | null;
   error: string | null;
+  settlementError: string | null;
   probingJobId: boolean;
 };

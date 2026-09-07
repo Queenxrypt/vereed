@@ -1,5 +1,5 @@
-import { REGISTRY_ADDRESS, SEPOLIA_EXPLORER_TX, VAULT_ADDRESS } from "../config";
-import { checksumAddress, formatCtcLabel, shortenAddress, shortenHash } from "../lib/format";
+import { CC3_EXPLORER_TX, REGISTRY_ADDRESS, SEPOLIA_EXPLORER_TX, VAULT_ADDRESS } from "../config";
+import { checksumAddress, formatCtcLabel, shortenAddress, shortenBytes32, shortenHash } from "../lib/format";
 import { deriveStatus, flowStatusLabel } from "../lib/status";
 import type { JobFlowStatus, ProtocolSnapshot, SessionJob } from "../lib/types";
 import { Copyable } from "./Copyable";
@@ -17,6 +17,8 @@ export function ProofOfSettlement({ snapshot, session, flowStatus, loading }: Pr
   const sourceReward = session.reward ?? snapshot?.sourceJob?.reward ?? snapshot?.jobCompleted?.reward;
   const registryOnVault = snapshot?.sourceRegistry;
   const jobId = session.jobId;
+  const settlement = session.settleConfirmed ? session.settlement : null;
+  const waiting = flowStatus === "waiting_settlement";
 
   return (
     <section className="evidence" aria-labelledby="proof-heading">
@@ -26,7 +28,8 @@ export function ProofOfSettlement({ snapshot, session, flowStatus, loading }: Pr
           <h2 id="proof-heading">Proof of settlement</h2>
         </div>
         <p className="section-copy">
-          Session hashes come from this wallet's Sepolia transactions. Settlement is not requested in this step.
+          Sepolia hashes come from this wallet. Settlement facts come from the relayer JobSettled response, not from
+          frontend inputs.
         </p>
       </div>
 
@@ -76,38 +79,60 @@ export function ProofOfSettlement({ snapshot, session, flowStatus, loading }: Pr
         </div>
         <div className="tx-row">
           <p className="tx-row__label">Creditcoin settlement</p>
-          <p className="tx-row__meta">Not requested yet</p>
+          {settlement ? (
+            <>
+              <Copyable
+                value={settlement.settlementTxHash}
+                display={shortenHash(settlement.settlementTxHash)}
+              />
+              <ExplorerLink href={`${CC3_EXPLORER_TX}/${settlement.settlementTxHash}`}>Blockscout</ExplorerLink>
+            </>
+          ) : (
+            <p className="tx-row__meta">
+              {waiting
+                ? "Waiting for Attestcoin verification and Creditcoin settlement…"
+                : "No confirmed Creditcoin settlement this session"}
+            </p>
+          )}
         </div>
       </div>
 
       <div className="proof-split">
         <article>
-          <h3>Session JobCompleted</h3>
-          {session.completeConfirmed && session.jobId != null && session.operator && session.reward != null && session.sourceTxHash ? (
+          <h3>JobSettled (relayer)</h3>
+          {settlement ? (
             <dl className="compact-dl compact-dl--inline">
               <div>
                 <dt>jobId</dt>
-                <dd>{session.jobId.toString()}</dd>
+                <dd>{settlement.jobId}</dd>
               </div>
               <div>
                 <dt>operator</dt>
                 <dd>
-                  <Copyable value={session.operator} display={shortenAddress(session.operator)} />
+                  <Copyable
+                    value={settlement.operator}
+                    display={shortenAddress(settlement.operator)}
+                  />
                 </dd>
               </div>
               <div>
                 <dt>reward</dt>
-                <dd>{formatCtcLabel(session.reward)}</dd>
+                <dd>{settlement.rewardFormatted}</dd>
               </div>
               <div>
-                <dt>sourceTxHash</dt>
+                <dt>queryId</dt>
                 <dd>
-                  <Copyable value={session.sourceTxHash} display={shortenHash(session.sourceTxHash)} />
+                  <Copyable
+                    value={settlement.queryId}
+                    display={shortenBytes32(settlement.queryId)}
+                  />
                 </dd>
               </div>
             </dl>
+          ) : waiting ? (
+            <p>Settlement requested. Waiting for Attestcoin verification and Creditcoin settlement…</p>
           ) : (
-            <p>No JobCompleted event from this session yet.</p>
+            <p>No JobSettled result from the relayer this session.</p>
           )}
         </article>
 
@@ -135,6 +160,10 @@ export function ProofOfSettlement({ snapshot, session, flowStatus, loading }: Pr
                     ? (snapshot?.settledError ?? (loading ? "…" : "—"))
                     : String(snapshot.settled)}
               </dd>
+            </div>
+            <div>
+              <dt>GET /settle settled</dt>
+              <dd>{session.relayerSettled === null ? "—" : String(session.relayerSettled)}</dd>
             </div>
             <div>
               <dt>sourceRegistry()</dt>
@@ -179,14 +208,20 @@ export function ProofOfSettlement({ snapshot, session, flowStatus, loading }: Pr
         </div>
         <div>
           <p className="eyebrow">Actual settled reward</p>
-          <p className="reward-compare__value">Not settled this session</p>
-          <p className="reward-compare__hint">SettlementVault JobSettled is not requested yet</p>
+          <p className="reward-compare__value">
+            {waiting
+              ? "Waiting…"
+              : settlement
+                ? settlement.rewardFormatted
+                : "Not settled this session"}
+          </p>
+          <p className="reward-compare__hint">From relayer JobSettled response — not a frontend input</p>
         </div>
         <div>
           <p className="eyebrow">Session status</p>
           <p className="reward-compare__value reward-compare__value--status">
             {flowStatusLabel(flowStatus)}
-            {status.label ? ` · ${status.label}` : ""}
+            {status.label && !waiting ? ` · ${status.label}` : ""}
           </p>
         </div>
       </div>

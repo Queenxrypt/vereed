@@ -7,11 +7,25 @@ import { useProtocolSnapshot } from "./lib/useProtocolSnapshot";
 import { useRegistryJob } from "./lib/useRegistryJob";
 
 export default function App() {
-  const { session, flowStatus, operator, reward, createJob, completeJob } = useRegistryJob();
+  const {
+    session,
+    flowStatus,
+    operator,
+    reward,
+    createJob,
+    completeJob,
+    requestSettlement,
+    refreshRelayerStatus,
+  } = useRegistryJob();
   const { snapshot, loading, refreshing, loadError, refresh } = useProtocolSnapshot({
     jobId: session.jobId,
     jobCompletedTxHash: session.sourceTxHash,
   });
+
+  const onRefresh = () => {
+    refresh();
+    void refreshRelayerStatus();
+  };
 
   return (
     <div className="app">
@@ -24,7 +38,7 @@ export default function App() {
           </div>
         </div>
         <div className="topbar__actions">
-          <button type="button" className="btn btn--ghost" onClick={refresh} disabled={loading || refreshing}>
+          <button type="button" className="btn btn--ghost" onClick={onRefresh} disabled={loading || refreshing}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
           <WalletBar />
@@ -43,6 +57,7 @@ export default function App() {
           loading={loading}
           onCreate={() => void createJob()}
           onComplete={() => void completeJob()}
+          onRequestSettlement={() => void requestSettlement()}
         />
         <ProofOfSettlement snapshot={snapshot} session={session} flowStatus={flowStatus} loading={loading} />
         <ReplaySection />
@@ -51,8 +66,8 @@ export default function App() {
       <footer className="site-footer">
         <p>Settlement infrastructure reference · BUIDL CTC 2026 Fall</p>
         <p>
-          The connected wallet signs Sepolia createJob and completeJob only. The frontend never holds a Creditcoin or
-          Attestcoin key.
+          The connected wallet signs Sepolia createJob and completeJob only. Creditcoin settlement is requested through
+          the HTTP relayer. The frontend never holds a Creditcoin or Attestcoin key.
         </p>
       </footer>
     </div>

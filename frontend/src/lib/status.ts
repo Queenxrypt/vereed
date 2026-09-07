@@ -9,7 +9,7 @@ export function deriveStatus(snapshot: ProtocolSnapshot | null, session?: Sessio
     session?.completeConfirmed === true ||
     snapshot?.sourceJob?.completed === true ||
     snapshot?.jobCompleted !== null;
-  const settledOnchain = snapshot?.jobSettled != null;
+  const settledOnchain = session?.settleConfirmed === true;
 
   if (!created && !completed) {
     return { kind: "idle", label: "No session job yet" };
@@ -48,6 +48,14 @@ export function flowStatusLabel(status: JobFlowStatus): string {
       return "Completing job · waiting for Sepolia confirmation";
     case "completed":
       return "Completed";
+    case "ready_to_request_settlement":
+      return "Ready to request settlement";
+    case "waiting_settlement":
+      return "Settlement requested · waiting for Attestcoin verification and Creditcoin settlement";
+    case "settled":
+      return "Settled";
+    case "settlement_error":
+      return "Settlement error";
     case "error":
       return "Error";
   }

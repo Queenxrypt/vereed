@@ -5,6 +5,7 @@ import { mockDePINJobRegistryAbi } from "../abi/MockDePINJobRegistry";
 import { DEMO_REWARD_WEI, REGISTRY_ADDRESS } from "../config";
 import { sepoliaClient } from "./clients";
 import { formatWriteError } from "./errors";
+import { getSettlementStatus, postSettle, RelayerClientError } from "./relayer";
 import {
   findUnusedJobId,
   parseJobCompletedFromReceipt,
@@ -21,16 +22,26 @@ const emptySession: SessionJob = {
   sourceTxHash: null,
   createConfirmed: false,
   completeConfirmed: false,
+  settleConfirmed: false,
+  settlement: null,
+  relayerSettled: null,
   pendingTxHash: null,
   error: null,
+  settlementError: null,
   probingJobId: false,
 };
+
+function settleErrorMessage(error: unknown): string {
+  if (error instanceof RelayerClientError) return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return "Settlement request failed.";
+}
 
 export function useRegistryJob() {
   const { address, isConnected, chainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const [session, setSession] = useState<SessionJob>(emptySession);
-  const [pendingKind, setPendingKind] = useState<"create" | "complete" | null>(null);
+  const [pendingKind, setPendingKind] = useState<"create" | "complete" | "settle" | null>(null);
 
   const onSepolia = isConnected && chainId === sepolia.id;
   const operator = address ?? null;
@@ -70,15 +81,28 @@ export function useRegistryJob() {
     if (chainId !== sepolia.id) return "wrong_network";
     if (pendingKind === "create") return "creating";
     if (pendingKind === "complete") return "completing";
+    if (pendingKind === "settle") return "waiting_settlement";
+    if (session.settlementError && session.completeConfirmed) return "settlement_error";
     if (session.error) return "error";
-    if (session.completeConfirmed) return "completed";
+    if (session.settleConfirmed) return "settled";
+    if (session.completeConfirmed) return "ready_to_request_settlement";
     if (session.createConfirmed) return "created";
     return "ready_to_create";
-  }, [address, chainId, isConnected, pendingKind, session.completeConfirmed, session.createConfirmed, session.error]);
+  }, [
+    address,
+    chainId,
+    isConnected,
+    pendingKind,
+    session.completeConfirmed,
+    session.createConfirmed,
+    session.error,
+    session.settleConfirmed,
+    session.settlementError,
+  ]);
 
   const createJob = useCallback(async () => {
     if (!address || chainId !== sepolia.id) return;
-    setSession((prev) => ({ ...prev, error: null }));
+    setSession((prev) => ({ ...prev, error: null, settlementError: null }));
     setPendingKind("create");
 
     try {
@@ -90,6 +114,9 @@ export function useRegistryJob() {
         reward,
         createConfirmed: false,
         completeConfirmed: false,
+        settleConfirmed: false,
+        settlement: null,
+        relayerSettled: null,
         createTxHash: null,
         sourceTxHash: null,
         pendingTxHash: null,
@@ -142,7 +169,7 @@ export function useRegistryJob() {
     const expectedOperator = session.operator;
     const expectedReward = session.reward;
 
-    setSession((prev) => ({ ...prev, error: null }));
+    setSession((prev) => ({ ...prev, error: null, settlementError: null }));
     setPendingKind("complete");
 
     try {
@@ -191,6 +218,59 @@ export function useRegistryJob() {
     writeContractAsync,
   ]);
 
+  const requestSettlement = useCallback(async () => {
+    if (!address || chainId !== sepolia.id) return;
+    if (!session.completeConfirmed || !session.sourceTxHash || session.settleConfirmed) return;
+
+    const sourceTxHash = session.sourceTxHash;
+    setSession((prev) => ({ ...prev, settlementError: null, error: null }));
+    setPendingKind("settle");
+
+    try {
+      const result = await postSettle(sourceTxHash);
+      setSession((prev) => ({
+        ...prev,
+        settleConfirmed: true,
+        settlement: {
+          sourceTxHash: result.sourceTxHash,
+          settlementTxHash: result.settlementTxHash,
+          jobId: result.jobId,
+          operator: result.operator,
+          reward: result.reward,
+          rewardFormatted: result.rewardFormatted,
+          queryId: result.queryId,
+        },
+        relayerSettled: true,
+        settlementError: null,
+      }));
+    } catch (error: unknown) {
+      setSession((prev) => ({
+        ...prev,
+        settleConfirmed: false,
+        settlement: null,
+        settlementError: settleErrorMessage(error),
+      }));
+    } finally {
+      setPendingKind(null);
+    }
+  }, [address, chainId, session.completeConfirmed, session.settleConfirmed, session.sourceTxHash]);
+
+  const refreshRelayerStatus = useCallback(async () => {
+    if (!session.sourceTxHash) return;
+    try {
+      const status = await getSettlementStatus(session.sourceTxHash);
+      setSession((prev) => ({
+        ...prev,
+        relayerSettled: status.settled,
+      }));
+    } catch (error: unknown) {
+      setSession((prev) => ({
+        ...prev,
+        settlementError: prev.settleConfirmed ? prev.settlementError : settleErrorMessage(error),
+      }));
+    }
+  }, [session.sourceTxHash]);
+
   return {
     session,
     flowStatus,
@@ -200,5 +280,7 @@ export function useRegistryJob() {
     chainId,
     createJob,
     completeJob,
+    requestSettlement,
+    refreshRelayerStatus,
   };
 }
